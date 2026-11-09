@@ -1,0 +1,26 @@
+name: Réveil Supabase
+# Supabase (gratuit) se met en veille après 7 jours sans activité : on le réveille tous les 3 jours.
+on:
+  schedule:
+    - cron: "17 6 */3 * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  reveil:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Appel de la fonction
+        run: |
+          URL=$(grep -o 'SUPABASE_URL: "[^"]*"' config.js | cut -d'"' -f2)
+          KEY=$(grep -o 'ANON_KEY: "[^"]*"' config.js | cut -d'"' -f2)
+          curl -sf -X POST "$URL/functions/v1/signature" -H "Authorization: Bearer $KEY" -H "apikey: $KEY" \
+               -H "Content-Type: application/json" -d '{"action":"ping"}'
+      - name: Garder le dépôt actif (GitHub coupe les tâches après 60 jours sans activité)
+        run: |
+          if [ "$(date +%d)" -le "03" ]; then
+            date -u > .derniere-activite
+            git config user.name "reveil-bot"; git config user.email "reveil-bot@users.noreply.github.com"
+            git add .derniere-activite && git commit -m "Activité mensuelle" && git push || true
+          fi

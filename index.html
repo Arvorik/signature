@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Signature fiche horaire</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✍️</text></svg>">
+<meta charset="utf-8">
+<style>
+  :root { --fonce:#2E4756; --moyen:#6E8B9B; --clair:#DDE8EF; --ok:#2E7D4F; --err:#B3261E; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+         background:#F3F6F8; color:#1F2A30; }
+  header { background:var(--fonce); color:#fff; padding:16px 18px; }
+  header h1 { margin:0; font-size:18px; }
+  header p { margin:4px 0 0; font-size:13px; opacity:.85; }
+  main { padding:14px; max-width:640px; margin:0 auto; }
+  .carte { background:#fff; border-radius:12px; padding:16px; margin-bottom:14px;
+           box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .carte h2 { margin:0 0 10px; font-size:16px; color:var(--fonce); }
+  .etape { display:inline-block; background:var(--clair); color:var(--fonce); border-radius:20px;
+           padding:2px 10px; font-size:12px; font-weight:bold; margin-bottom:8px; }
+  #pages canvas { width:100%; height:auto; border:1px solid #D5DEE4; border-radius:6px; margin-bottom:8px; background:#fff; }
+  button { width:100%; border:0; border-radius:10px; padding:15px; font-size:16px; font-weight:bold;
+           background:var(--fonce); color:#fff; margin-top:10px; }
+  button.second { background:#fff; color:var(--fonce); border:1.5px solid var(--moyen); }
+  button:disabled { opacity:.5; }
+  input.code { width:100%; font-size:28px; letter-spacing:10px; text-align:center; padding:12px;
+               border:1.5px solid var(--moyen); border-radius:10px; }
+  .pad { width:100%; border:1.5px dashed var(--moyen); border-radius:10px; background:#FBFCFD;
+         touch-action:none; display:block; }
+  #padLu { height:120px; } #padSig { height:170px; }
+  .ligne-boutons { display:flex; gap:8px; } .ligne-boutons button { margin-top:6px; padding:10px; font-size:14px; }
+  .msg { font-size:14px; margin-top:8px; min-height:18px; }
+  .err { color:var(--err); } .info { color:var(--moyen); }
+  .cache { display:none; }
+  .fini { text-align:center; padding:30px 16px; }
+  .fini .rond { font-size:54px; }
+  small { color:#5d6b73; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="titre">✍️ Fiche horaire</h1>
+  <p id="soustitre">Ferme d'Arvorik</p>
+</header>
+<main>
+
+  <div id="ecranChargement" class="carte"><p class="info">Chargement…</p></div>
+
+  <div id="ecranInconnu" class="carte cache"><h2>Lien invalide</h2>
+    <p>Ce lien de signature n'existe pas ou n'est plus valable. Contacte Kevin.</p></div>
+
+  <div id="ecranDejaSigne" class="carte fini cache"><div class="rond">✅</div>
+    <h2>Fiche déjà signée</h2><p>Tu as reçu ta copie signée par mail.</p></div>
+
+  <div id="ecranSignature" class="cache">
+    <div class="carte">
+      <span class="etape">Étape 1 / 3</span>
+      <h2>Vérifie ta fiche</h2>
+      <div id="pages"><p class="info">Chargement de la fiche…</p></div>
+      <small>Une heure ne te paraît pas juste ? Appelle Kevin avant de signer.</small>
+      <button id="btnCode" disabled>J'ai vérifié, recevoir mon code</button>
+    </div>
+
+    <div id="blocCode" class="carte cache">
+      <span class="etape">Étape 2 / 3</span>
+      <h2>Code reçu par mail</h2>
+      <p class="info" id="infoCode"></p>
+      <input id="champCode" class="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••">
+      <button id="btnVerifier">Valider le code</button>
+      <button id="btnRenvoyer" class="second">Renvoyer un code</button>
+    </div>
+
+    <div id="blocSigner" class="carte cache">
+      <span class="etape">Étape 3 / 3</span>
+      <h2>Écris « Lu et approuvé » avec ton doigt</h2>
+      <canvas id="padLu" class="pad"></canvas>
+      <div class="ligne-boutons"><button class="second" data-effacer="padLu">Effacer</button></div>
+      <h2 style="margin-top:18px">Signe ici</h2>
+      <canvas id="padSig" class="pad"></canvas>
+      <div class="ligne-boutons"><button class="second" data-effacer="padSig">Effacer</button></div>
+      <button id="btnSigner">Valider ma signature</button>
+    </div>
+
+    <p id="msg" class="msg"></p>
+  </div>
+
+  <div id="ecranFini" class="carte fini cache"><div class="rond">✅</div>
+    <h2>Merci, ta fiche est signée</h2>
+    <p>Tu vas recevoir ta copie signée par mail.</p></div>
+</main>
+
+<script src="config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script>
+const JETON = (new URLSearchParams(location.search).get('t') || '').replace(/[^a-f0-9]/gi, '');
+const LIEU = CONFIG.LIEU;
+const $ = id => document.getElementById(id);
+let pdfOctets = null, pdfjsDoc = null;
+
+function msg(t, err) { const m = $('msg'); m.textContent = t || ''; m.className = 'msg ' + (err ? 'err' : 'info'); }
+async function appel(action, params = {}) {
+  let r;
+  try {
+    r = await fetch(CONFIG.SUPABASE_URL + '/functions/v1/signature', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CONFIG.ANON_KEY, 'apikey': CONFIG.ANON_KEY },
+      body: JSON.stringify(Object.assign({ action, jeton: JETON }, params)),
+    });
+  } catch (e) { throw new Error('Pas de connexion internet. Réessaie.'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.erreur) throw new Error(d.erreur || 'Erreur du serveur.');
+  return d;
+}
+function b64VersOctets(b64) { const s = atob(b64), o = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) o[i] = s.charCodeAt(i); return o; }
+
+/* ---------- Démarrage ---------- */
+(async () => {
+  let info = { etat: 'INCONNU' };
+  if (JETON) { try { info = await appel('info'); } catch (e) { info = { etat: 'ERREUR', message: e.message }; } }
+  $('ecranChargement').classList.add('cache');
+  if (info.mois) $('titre').textContent = '✍️ Fiche horaire — ' + info.mois;
+  if (info.prenom) $('soustitre').textContent = "Ferme d'Arvorik · " + info.prenom;
+  if (info.etat === 'SIGNE') $('ecranDejaSigne').classList.remove('cache');
+  else if (info.etat === 'ATTENTE') { $('ecranSignature').classList.remove('cache'); chargerFiche(); }
+  else {
+    $('ecranInconnu').classList.remove('cache');
+    if (info.etat === 'ERREUR') $('ecranInconnu').querySelector('p').textContent = info.message;
+  }
+})();
+
+async function preparerPdfjs() {
+  const url = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  try {
+    const txt = await (await fetch(url)).text();
+    pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([txt], { type: 'application/javascript' }));
+  } catch (e) { pdfjsLib.GlobalWorkerOptions.workerSrc = url; }
+}
+
+async function chargerFiche() {
+  try {
+    await preparerPdfjs();
+    pdfOctets = b64VersOctets((await appel('pdf')).pdf);
+    pdfjsDoc = await pdfjsLib.getDocument({ data: pdfOctets.slice() }).promise;
+    const conteneur = $('pages'); conteneur.innerHTML = '';
+    for (let n = 1; n <= pdfjsDoc.numPages; n++) {
+      const page = await pdfjsDoc.getPage(n);
+      const largeur = Math.min(conteneur.clientWidth || 360, 640);
+      const echelle = (largeur / page.getViewport({ scale: 1 }).width) * (window.devicePixelRatio || 1) * 1.5;
+      const vp = page.getViewport({ scale: echelle });
+      const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+      conteneur.appendChild(c);
+      await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    }
+    $('btnCode').disabled = false;
+  } catch (e) { msg('Impossible d\'afficher la fiche : ' + e.message, true); }
+}
+
+/* ---------- Code ---------- */
+async function demanderCode() {
+  msg('Envoi du code…');
+  try {
+    const email = (await appel('envoyerCode')).email;
+    $('infoCode').textContent = 'Un code à 6 chiffres vient d\'être envoyé à ' + email + '. Regarde aussi dans les spams.';
+    $('blocCode').classList.remove('cache'); $('btnCode').classList.add('cache');
+    msg(''); $('champCode').focus();
+  } catch (e) { msg(e.message, true); }
+}
+$('btnCode').onclick = demanderCode;
+$('btnRenvoyer').onclick = demanderCode;
+$('btnVerifier').onclick = async () => {
+  $('btnVerifier').disabled = true; msg('Vérification…');
+  try {
+    await appel('verifierCode', { code: $('champCode').value });
+    $('blocCode').classList.add('cache'); $('blocSigner').classList.remove('cache');
+    initPad('padLu', 2.6); initPad('padSig', 2.8);
+    msg(''); $('blocSigner').scrollIntoView({ behavior: 'smooth' });
+  } catch (e) { msg(e.message, true); }
+  $('btnVerifier').disabled = false;
+};
+
+/* ---------- Zones de dessin ---------- */
+const pads = {};
+function initPad(id, epaisseur) {
+  const c = $(id), r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  c.width = r.width * dpr; c.height = r.height * dpr;
+  const ctx = c.getContext('2d');
+  ctx.scale(dpr, dpr); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#14246B'; ctx.lineWidth = epaisseur;
+  const p = pads[id] = { c, ctx, traits: 0, actif: false, dernier: null };
+  const pos = e => { const b = c.getBoundingClientRect(); return { x: e.clientX - b.left, y: e.clientY - b.top }; };
+  c.onpointerdown = e => { e.preventDefault(); c.setPointerCapture(e.pointerId); p.actif = true; p.dernier = pos(e);
+    ctx.beginPath(); ctx.arc(p.dernier.x, p.dernier.y, epaisseur / 2, 0, 7); ctx.fillStyle = ctx.strokeStyle; ctx.fill(); p.traits++; };
+  c.onpointermove = e => { if (!p.actif) return; e.preventDefault(); const q = pos(e);
+    ctx.beginPath(); ctx.moveTo(p.dernier.x, p.dernier.y); ctx.lineTo(q.x, q.y); ctx.stroke(); p.dernier = q; };
+  c.onpointerup = c.onpointercancel = () => { p.actif = false; };
+}
+document.querySelectorAll('[data-effacer]').forEach(b => b.onclick = () => {
+  const p = pads[b.dataset.effacer]; if (!p) return;
+  p.ctx.save(); p.ctx.setTransform(1, 0, 0, 1, 0, 0); p.ctx.clearRect(0, 0, p.c.width, p.c.height); p.ctx.restore(); p.traits = 0;
+});
+
+/** Recadre le tracé au plus juste (fond transparent) et renvoie un PNG. */
+function traceRecadre(c) {
+  const ctx = c.getContext('2d'), d = ctx.getImageData(0, 0, c.width, c.height).data;
+  let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+  for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
+    if (d[(y * c.width + x) * 4 + 3] > 10) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  if (x1 < 0) return null;
+  const m = 6; x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m);
+  x1 = Math.min(c.width - 1, x1 + m); y1 = Math.min(c.height - 1, y1 + m);
+  const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
+  o.getContext('2d').drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
+  return { png: o.toDataURL('image/png'), w: o.width, h: o.height };
+}
+
+/* ---------- Apposition sur le PDF ---------- */
+async function reperesDernierePage() {
+  const n = pdfjsDoc.numPages, page = await pdfjsDoc.getPage(n);
+  const items = (await page.getTextContent()).items.filter(i => i.str);
+  const vp = page.getViewport({ scale: 1 });
+  return { items, largeur: vp.width, hauteur: vp.height };
+}
+
+async function apposer(info) {
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const lu = traceRecadre(pads.padLu.c), sig = traceRecadre(pads.padSig.c);
+  const doc = await PDFDocument.load(pdfOctets.slice());
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const pages = doc.getPages(), page = pages[pages.length - 1];
+  const { items } = await reperesDernierePage();
+  const W = page.getWidth();
+  const bleu = rgb(0.08, 0.14, 0.42), gris = rgb(0.35, 0.35, 0.35), blanc = rgb(1, 1, 1);
+
+  // Zone de signature : sous l'intitulé « … Lu et approuvé », sinon en bas à droite.
+  let zone;
+  const titre = items.find(i => /lu et approuv/i.test(i.str));
+  if (titre) {
+    const cx = titre.transform[4] + titre.width / 2, y = titre.transform[5];
+    const demi = Math.max(titre.width / 2 + 6, Math.min(W - 26 - cx, 170));
+    zone = { x: cx - demi, w: demi * 2, haut: y - 8, h: 66 };
+  } else {
+    zone = { x: W * 0.46, w: W * 0.50, haut: 140, h: 100 };
+  }
+  const pad = 4, x = zone.x + pad, w = zone.w - 2 * pad;
+  const hLu = zone.h * 0.30, hSig = zone.h * 0.50;
+  const placer = async (t, yHaut, hMax) => {
+    const img = await doc.embedPng(t.png);
+    const k = Math.min(w / t.w, hMax / t.h);
+    page.drawImage(img, { x: x + (w - t.w * k) / 2, y: yHaut - t.h * k - (hMax - t.h * k) / 2, width: t.w * k, height: t.h * k });
+  };
+  await placer(lu, zone.haut - pad, hLu);
+  await placer(sig, zone.haut - pad - hLu, hSig);
+  const ligne = 'Signé électroniquement le ' + info.date + ' à ' + info.heure + ' — code ' + info.code;
+  let taille = 6; while (font.widthOfTextAtSize(ligne, taille) > w && taille > 4) taille -= 0.2;
+  page.drawText(ligne, { x: x + (w - font.widthOfTextAtSize(ligne, taille)) / 2, y: zone.haut - zone.h + pad, size: taille, font, color: gris });
+
+  // « Fait le … » et « à … » remplis automatiquement s'ils existent.
+  const remplir = (re, prefixe, valeur) => {
+    const it = items.find(i => re.test(i.str)); if (!it) return;
+    const t = Math.abs(it.transform[0]) || 8, x0 = it.transform[4] + font.widthOfTextAtSize(prefixe, t), y0 = it.transform[5];
+    page.drawRectangle({ x: x0, y: y0 - 2, width: it.transform[4] + it.width - x0 + 1, height: t + 3, color: blanc });
+    page.drawText(valeur, { x: x0 + 2, y: y0, size: t + 1, font, color: bleu });
+  };
+  remplir(/^\s*Fait le\b/i, 'Fait le ', info.date);
+  remplir(/^\s*à\s*\.{3,}/i, 'à ', LIEU);
+
+  // Mention discrète sur chaque page.
+  const mention = 'Document signé électroniquement le ' + info.date + ' à ' + info.heure + ' — réf. ' + info.ref;
+  pages.forEach(p => p.drawText(mention, { x: 26, y: 5, size: 5.5, font, color: gris }));
+  return doc.saveAsBase64();
+}
+
+$('btnSigner').onclick = async () => {
+  if (!pads.padLu || pads.padLu.traits < 2 || !traceRecadre(pads.padLu.c)) { msg('Écris « Lu et approuvé » dans le premier cadre.', true); return; }
+  if (!pads.padSig || !traceRecadre(pads.padSig.c)) { msg('Signe dans le deuxième cadre.', true); return; }
+  $('btnSigner').disabled = true; msg('Enregistrement de ta signature…');
+  try {
+    const info = await appel('horodatage');
+    const b64 = await apposer(info);
+    await appel('enregistrer', { pdf: b64 });
+    $('ecranSignature').classList.add('cache'); $('ecranFini').classList.remove('cache'); window.scrollTo(0, 0);
+  } catch (e) { msg(e.message, true); $('btnSigner').disabled = false; }
+};
+</script>
+</body>
+</html>

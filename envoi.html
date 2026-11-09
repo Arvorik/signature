@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fiches horaires — Envoi</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📨</text></svg>">
+<style>
+  :root { --fonce:#2E4756; --moyen:#6E8B9B; --clair:#DDE8EF; --ok:#2E7D4F; --err:#B3261E; --fond:#F3F6F8; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; background:var(--fond); color:#1F2A30; }
+  header { background:var(--fonce); color:#fff; padding:14px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  header h1 { margin:0; font-size:18px; }
+  header button { width:auto; margin:0; padding:8px 12px; font-size:13px; background:rgba(255,255,255,.15); }
+  main { max-width:980px; margin:0 auto; padding:16px; }
+  .carte { background:#fff; border-radius:12px; padding:18px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  h2 { margin:0 0 12px; font-size:17px; color:var(--fonce); }
+  label { display:block; font-size:13px; color:#4a5a63; margin:10px 0 4px; }
+  input[type=text], input[type=email], input[type=password] { width:100%; padding:11px; font-size:15px; border:1.5px solid #C9D6DE; border-radius:8px; }
+  button { border:0; border-radius:8px; padding:11px 16px; font-size:15px; font-weight:bold; background:var(--fonce); color:#fff; cursor:pointer; margin-top:12px; }
+  button.second { background:#fff; color:var(--fonce); border:1.5px solid var(--moyen); }
+  button.petit { padding:6px 10px; font-size:13px; margin:0; }
+  button.danger { background:#fff; color:var(--err); border:1.5px solid #E5B4B0; }
+  button:disabled { opacity:.5; cursor:default; }
+  .onglets { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+  .onglets button { margin:0; background:#fff; color:var(--fonce); border:1.5px solid #C9D6DE; }
+  .onglets button.actif { background:var(--fonce); color:#fff; border-color:var(--fonce); }
+  .depot { border:2px dashed var(--moyen); border-radius:12px; padding:30px; text-align:center; color:var(--moyen); cursor:pointer; background:#FBFCFD; }
+  .depot.survol { background:var(--clair); }
+  .tableau { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:9px 8px; border-bottom:1px solid #E3EAEE; vertical-align:middle; }
+  th { font-size:12px; color:#5d6b73; text-transform:uppercase; letter-spacing:.03em; }
+  select { padding:7px; font-size:14px; border:1.5px solid #C9D6DE; border-radius:6px; max-width:240px; }
+  .badge { display:inline-block; padding:2px 9px; border-radius:12px; font-size:12px; font-weight:bold; }
+  .attente { background:#FDF3D6; color:#7A5B00; } .signee { background:#DFF1E6; color:var(--ok); }
+  .erreur { background:#F9E1DF; color:var(--err); } .encours { background:var(--clair); color:var(--fonce); }
+  .msg { margin-top:10px; font-size:14px; min-height:18px; } .msg.err { color:var(--err); } .msg.ok { color:var(--ok); }
+  .cache { display:none !important; }
+  .ligne { display:flex; gap:10px; flex-wrap:wrap; align-items:end; } .ligne > div { flex:1; min-width:160px; }
+  .mail { font-family:ui-monospace,Consolas,monospace; font-size:13px; }
+  small { color:#5d6b73; }
+  .groupe-mois td { background:var(--clair); font-weight:bold; color:var(--fonce); }
+</style>
+</head>
+<body>
+<header>
+  <h1>📨 Fiches horaires — Ferme d'Arvorik</h1>
+  <button id="btnDeconnexion" class="cache">Se déconnecter</button>
+</header>
+<main>
+
+  <!-- Connexion -->
+  <div id="vueConnexion" class="carte cache" style="max-width:420px;margin:30px auto">
+    <h2>Connexion</h2>
+    <label>Adresse mail</label><input id="cEmail" type="email" autocomplete="username">
+    <label>Mot de passe</label><input id="cMdp" type="password" autocomplete="current-password">
+    <button id="btnConnexion">Se connecter</button>
+    <button id="btnOubli" class="second">Mot de passe oublié</button>
+    <p id="msgConnexion" class="msg"></p>
+  </div>
+
+  <!-- Choix du mot de passe (invitation ou réinitialisation) -->
+  <div id="vueMdp" class="carte cache" style="max-width:420px;margin:30px auto">
+    <h2>Choisis ton mot de passe</h2>
+    <label>Nouveau mot de passe (8 caractères minimum)</label><input id="nMdp" type="password" autocomplete="new-password">
+    <button id="btnMdp">Enregistrer</button>
+    <p id="msgMdp" class="msg"></p>
+  </div>
+
+  <!-- Application -->
+  <div id="vueApp" class="cache">
+    <div class="onglets">
+      <button data-onglet="envoyer" class="actif">Envoyer</button>
+      <button data-onglet="suivi">Suivi</button>
+      <button data-onglet="salaries">Salariés</button>
+    </div>
+
+    <div id="ongletEnvoyer" class="carte">
+      <h2>Envoyer les fiches du mois</h2>
+      <label>Mois concerné</label><input id="mois" type="text" placeholder="novembre 2026">
+      <label>Fiches PDF</label>
+      <div id="depot" class="depot">Glisse les PDF ici ou clique pour les choisir<br><small>Le nom du fichier doit contenir le prénom et le nom du salarié</small></div>
+      <input id="choixFichiers" type="file" accept="application/pdf" multiple class="cache">
+      <div id="blocListe" class="cache">
+        <div class="tableau"><table>
+          <thead><tr><th>Fichier</th><th>Salarié</th><th>Adresse</th><th>État</th><th></th></tr></thead>
+          <tbody id="listeEnvoi"></tbody>
+        </table></div>
+        <p><small>Vérifie chaque adresse caractère par caractère avant d'envoyer.</small></p>
+        <button id="btnEnvoyer">Envoyer</button>
+      </div>
+      <p id="msgEnvoi" class="msg"></p>
+    </div>
+
+    <div id="ongletSuivi" class="carte cache">
+      <h2>Suivi des signatures</h2>
+      <div class="tableau"><table>
+        <thead><tr><th>Salarié</th><th>Fichier</th><th>Envoyée</th><th>État</th><th>Signée le</th><th></th></tr></thead>
+        <tbody id="listeSuivi"></tbody>
+      </table></div>
+      <p id="msgSuivi" class="msg"></p>
+    </div>
+
+    <div id="ongletSalaries" class="carte cache">
+      <h2>Salariés</h2>
+      <div class="tableau"><table>
+        <thead><tr><th>Prénom</th><th>Nom</th><th>Adresse mail</th><th>Actif</th><th></th></tr></thead>
+        <tbody id="listeSalaries"></tbody>
+      </table></div>
+      <h2 style="margin-top:20px" id="titreForm">Ajouter un salarié</h2>
+      <div class="ligne">
+        <div><label>Prénom</label><input id="sPrenom" type="text"></div>
+        <div><label>Nom</label><input id="sNom" type="text"></div>
+        <div style="flex:2"><label>Adresse mail</label><input id="sEmail" type="email"></div>
+      </div>
+      <button id="btnSalarie">Enregistrer</button>
+      <button id="btnAnnulerSalarie" class="second cache">Annuler</button>
+      <p id="msgSalarie" class="msg"></p>
+    </div>
+  </div>
+</main>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.ANON_KEY);
+let session = null, salaries = [], aEnvoyer = [], salarieEdite = null;
+
+function msg(id, t, type) { const m = $(id); m.textContent = t || ''; m.className = 'msg ' + (type || ''); }
+function vue(nom) { ['vueConnexion', 'vueMdp', 'vueApp'].forEach(v => $(v).classList.toggle('cache', v !== nom));
+  $('btnDeconnexion').classList.toggle('cache', nom !== 'vueApp'); }
+const normaliser = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const echap = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const dateCourte = d => d ? new Date(d).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+
+async function api(action, params = {}) {
+  const r = await fetch(CONFIG.SUPABASE_URL + '/functions/v1/signature', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token, 'apikey': CONFIG.ANON_KEY },
+    body: JSON.stringify(Object.assign({ action }, params)),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.erreur) throw new Error(d.erreur || 'Erreur du serveur.');
+  return d;
+}
+
+/* ---------- Connexion ---------- */
+const typeLien = new URLSearchParams(location.hash.slice(1)).get('type');
+sb.auth.onAuthStateChange((evt, s) => {
+  session = s;
+  if (evt === 'PASSWORD_RECOVERY' || (s && (typeLien === 'invite' || typeLien === 'recovery'))) { vue('vueMdp'); return; }
+  if (s) { vue('vueApp'); demarrer(); } else vue('vueConnexion');
+});
+$('btnConnexion').onclick = async () => {
+  msg('msgConnexion', 'Connexion…');
+  const { error } = await sb.auth.signInWithPassword({ email: $('cEmail').value.trim(), password: $('cMdp').value });
+  if (error) msg('msgConnexion', 'Adresse ou mot de passe incorrect.', 'err');
+};
+$('cMdp').onkeydown = e => { if (e.key === 'Enter') $('btnConnexion').click(); };
+$('btnOubli').onclick = async () => {
+  const email = $('cEmail').value.trim();
+  if (!email) { msg('msgConnexion', 'Tape d\'abord ton adresse mail.', 'err'); return; }
+  await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  msg('msgConnexion', 'Si cette adresse est autorisée, un mail de réinitialisation vient d\'être envoyé.', 'ok');
+};
+$('btnMdp').onclick = async () => {
+  const p = $('nMdp').value;
+  if (p.length < 8) { msg('msgMdp', '8 caractères minimum.', 'err'); return; }
+  const { error } = await sb.auth.updateUser({ password: p });
+  if (error) { msg('msgMdp', error.message, 'err'); return; }
+  history.replaceState(null, '', location.pathname);
+  vue('vueApp'); demarrer();
+};
+$('btnDeconnexion').onclick = () => sb.auth.signOut();
+
+/* ---------- Onglets ---------- */
+document.querySelectorAll('[data-onglet]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-onglet]').forEach(x => x.classList.toggle('actif', x === b));
+  ['envoyer', 'suivi', 'salaries'].forEach(o => $('onglet' + o[0].toUpperCase() + o.slice(1)).classList.toggle('cache', o !== b.dataset.onglet));
+  if (b.dataset.onglet === 'suivi') chargerSuivi();
+  if (b.dataset.onglet === 'salaries') chargerSalaries();
+});
+
+let demarre = false;
+async function demarrer() {
+  if (demarre) return; demarre = true;
+  const moisPrec = new Date(); moisPrec.setDate(1); moisPrec.setMonth(moisPrec.getMonth() - 1);
+  $('mois').value = moisPrec.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  await chargerSalaries();
+}
+
+/* ---------- Salariés ---------- */
+async function chargerSalaries() {
+  try { salaries = (await api('salaries')).salaries; } catch (e) { msg('msgSalarie', e.message, 'err'); return; }
+  $('listeSalaries').innerHTML = salaries.map(s => `<tr>
+      <td>${echap(s.prenom)}</td><td>${echap(s.nom)}</td><td class="mail">${echap(s.email)}</td>
+      <td><input type="checkbox" data-actif="${s.id}" ${s.actif ? 'checked' : ''}></td>
+      <td style="white-space:nowrap"><button class="petit second" data-modif="${s.id}">Modifier</button>
+      <button class="petit danger" data-suppr="${s.id}">Supprimer</button></td></tr>`).join('')
+    || '<tr><td colspan="5"><small>Aucun salarié pour l\'instant.</small></td></tr>';
+  document.querySelectorAll('[data-actif]').forEach(c => c.onchange = async () => {
+    const s = salaries.find(x => x.id === c.dataset.actif); await api('enregistrerSalarie', { ...s, actif: c.checked }); chargerSalaries();
+  });
+  document.querySelectorAll('[data-modif]').forEach(b => b.onclick = () => {
+    const s = salaries.find(x => x.id === b.dataset.modif); salarieEdite = s.id;
+    $('sPrenom').value = s.prenom; $('sNom').value = s.nom; $('sEmail').value = s.email;
+    $('titreForm').textContent = 'Modifier ' + s.prenom + ' ' + s.nom; $('btnAnnulerSalarie').classList.remove('cache');
+  });
+  document.querySelectorAll('[data-suppr]').forEach(b => b.onclick = async () => {
+    const s = salaries.find(x => x.id === b.dataset.suppr);
+    if (!confirm('Supprimer ' + s.prenom + ' ' + s.nom + ' de la liste ?')) return;
+    await api('supprimerSalarie', { id: s.id }); chargerSalaries();
+  });
+}
+function resetForm() { salarieEdite = null; ['sPrenom', 'sNom', 'sEmail'].forEach(i => $(i).value = '');
+  $('titreForm').textContent = 'Ajouter un salarié'; $('btnAnnulerSalarie').classList.add('cache'); }
+$('btnAnnulerSalarie').onclick = resetForm;
+$('btnSalarie').onclick = async () => {
+  const s = salaries.find(x => x.id === salarieEdite);
+  try {
+    await api('enregistrerSalarie', { id: salarieEdite, prenom: $('sPrenom').value, nom: $('sNom').value, email: $('sEmail').value, actif: s ? s.actif : true });
+    msg('msgSalarie', 'Enregistré ✔ — adresse : ' + $('sEmail').value.trim(), 'ok'); resetForm(); chargerSalaries();
+  } catch (e) { msg('msgSalarie', e.message, 'err'); }
+};
+
+/* ---------- Envoi ---------- */
+const depot = $('depot');
+depot.onclick = () => $('choixFichiers').click();
+depot.ondragover = e => { e.preventDefault(); depot.classList.add('survol'); };
+depot.ondragleave = () => depot.classList.remove('survol');
+depot.ondrop = e => { e.preventDefault(); depot.classList.remove('survol'); ajouterFichiers(e.dataTransfer.files); };
+$('choixFichiers').onchange = e => { ajouterFichiers(e.target.files); e.target.value = ''; };
+
+function trouverSalarie(nomFichier) {
+  const n = ' ' + normaliser(nomFichier) + ' ', a = salaries.filter(s => s.actif);
+  const t = a.filter(s => n.includes(' ' + normaliser(s.prenom) + ' ') && n.includes(' ' + normaliser(s.nom) + ' '));
+  return t.length === 1 ? t[0].id : '';
+}
+function ajouterFichiers(liste) {
+  [...liste].filter(f => /\.pdf$/i.test(f.name)).forEach(f => {
+    if (!aEnvoyer.some(x => x.fichier.name === f.name)) aEnvoyer.push({ fichier: f, salarieId: trouverSalarie(f.name), etat: '' });
+  });
+  afficherEnvoi();
+}
+function afficherEnvoi() {
+  $('blocListe').classList.toggle('cache', !aEnvoyer.length);
+  const options = id => '<option value="">— choisir —</option>' + salaries.filter(s => s.actif)
+    .map(s => `<option value="${s.id}" ${s.id === id ? 'selected' : ''}>${echap(s.prenom + ' ' + s.nom)}</option>`).join('');
+  $('listeEnvoi').innerHTML = aEnvoyer.map((x, i) => {
+    const s = salaries.find(y => y.id === x.salarieId);
+    const etat = x.etat === 'ok' ? '<span class="badge signee">Envoyée</span>' : x.etat === 'encours' ? '<span class="badge encours">Envoi…</span>'
+      : x.etat ? `<span class="badge erreur" title="${echap(x.etat)}">Erreur</span>` : '';
+    return `<tr><td>${echap(x.fichier.name)}${x.etat && x.etat !== 'ok' && x.etat !== 'encours' ? '<br><small style="color:var(--err)">' + echap(x.etat) + '</small>' : ''}</td>
+      <td><select data-i="${i}" ${x.etat === 'ok' ? 'disabled' : ''}>${options(x.salarieId)}</select></td>
+      <td class="mail">${s ? echap(s.email) : '<small style="color:var(--err)">non reconnu</small>'}</td>
+      <td>${etat}</td><td>${x.etat === 'ok' ? '' : `<button class="petit danger" data-retirer="${i}">✕</button>`}</td></tr>`;
+  }).join('');
+  document.querySelectorAll('#listeEnvoi select').forEach(sel => sel.onchange = () => { aEnvoyer[sel.dataset.i].salarieId = sel.value; afficherEnvoi(); });
+  document.querySelectorAll('[data-retirer]').forEach(b => b.onclick = () => { aEnvoyer.splice(+b.dataset.retirer, 1); afficherEnvoi(); });
+}
+const lireB64 = f => new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = ko; r.readAsDataURL(f); });
+
+$('btnEnvoyer').onclick = async () => {
+  const mois = $('mois').value.trim();
+  if (!mois) { msg('msgEnvoi', 'Indique le mois.', 'err'); return; }
+  const prets = aEnvoyer.filter(x => x.etat !== 'ok');
+  if (prets.some(x => !x.salarieId)) { msg('msgEnvoi', 'Choisis le salarié pour chaque fiche.', 'err'); return; }
+  const resume = prets.map(x => { const s = salaries.find(y => y.id === x.salarieId); return `• ${s.prenom} ${s.nom} → ${s.email}`; }).join('\n');
+  if (!confirm(`Mois : ${mois}\n\n${resume}\n\nAdresses vérifiées ? Envoyer maintenant ?`)) return;
+  $('btnEnvoyer').disabled = true; let ok = 0;
+  for (const x of prets) {
+    x.etat = 'encours'; afficherEnvoi();
+    try { await api('envoyer', { mois, salarieId: x.salarieId, fichierNom: x.fichier.name, pdf: await lireB64(x.fichier) }); x.etat = 'ok'; ok++; }
+    catch (e) { x.etat = e.message; }
+    afficherEnvoi();
+  }
+  $('btnEnvoyer').disabled = false;
+  msg('msgEnvoi', `${ok} fiche(s) envoyée(s) sur ${prets.length}.`, ok === prets.length ? 'ok' : 'err');
+};
+
+/* ---------- Suivi ---------- */
+async function chargerSuivi() {
+  let fiches;
+  try { fiches = (await api('fiches')).fiches; } catch (e) { msg('msgSuivi', e.message, 'err'); return; }
+  let html = '', moisCourant = null;
+  for (const f of fiches) {
+    if (f.mois !== moisCourant) {
+      moisCourant = f.mois;
+      const m = fiches.filter(x => x.mois === f.mois), s = m.filter(x => x.statut === 'signee').length;
+      html += `<tr class="groupe-mois"><td colspan="6">${echap(f.mois)} — ${s}/${m.length} signée(s)</td></tr>`;
+    }
+    html += `<tr><td>${echap(f.prenom + ' ' + f.nom)}<br><small class="mail">${echap(f.email)}</small></td>
+      <td><small>${echap(f.fichier_nom)}</small></td><td><small>${dateCourte(f.envoye_le)}</small></td>
+      <td>${f.statut === 'signee' ? '<span class="badge signee">Signée</span>' : '<span class="badge attente">En attente</span>'}</td>
+      <td><small>${dateCourte(f.signe_le)}${f.code_utilise ? '<br>code ' + echap(f.code_utilise) : ''}</small></td>
+      <td style="white-space:nowrap">${f.statut === 'signee' ? `<button class="petit second" data-pdf="${f.id}">PDF signé</button>` : ''}
+      <button class="petit danger" data-supfiche="${f.id}">✕</button></td></tr>`;
+  }
+  $('listeSuivi').innerHTML = html || '<tr><td colspan="6"><small>Aucune fiche envoyée pour l\'instant.</small></td></tr>';
+  document.querySelectorAll('[data-pdf]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try {
+      const d = await api('pdfSigne', { id: b.dataset.pdf });
+      const a = document.createElement('a'); a.href = 'data:application/pdf;base64,' + d.pdf; a.download = d.nom; a.click();
+    } catch (e) { msg('msgSuivi', e.message, 'err'); }
+    b.disabled = false;
+  });
+  document.querySelectorAll('[data-supfiche]').forEach(b => b.onclick = async () => {
+    if (!confirm('Supprimer cette fiche du suivi (et son PDF) ? Le lien de signature ne marchera plus.')) return;
+    await api('supprimerFiche', { id: b.dataset.supfiche }); chargerSuivi();
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+window.CONFIG = { SUPABASE_URL: "A_REMPLIR", ANON_KEY: "A_REMPLIR", LIEU: "Trébry" };

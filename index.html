@@ -5,6 +5,7 @@
 <title>Signature fiche horaire</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✍️</text></svg>">
 <meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Satisfy&display=swap">
 <style>
   :root { --fonce:#2E4756; --moyen:#6E8B9B; --clair:#DDE8EF; --ok:#2E7D4F; --err:#B3261E; }
   * { box-sizing:border-box; }
@@ -36,6 +37,9 @@
   .fini { text-align:center; padding:30px 16px; }
   .fini .rond { font-size:54px; }
   small { color:#5d6b73; }
+  button.lu { background:#fff; color:var(--fonce); border:1.5px dashed var(--moyen); min-height:70px; }
+  button.lu.ok { border:1.5px solid #14246B; background:#F4F6FC; }
+  .luTexte { font-family:'Satisfy',cursive; font-weight:400; color:#14246B; font-size:34px; }
 </style>
 </head>
 <body>
@@ -73,10 +77,9 @@
 
     <div id="blocSigner" class="carte cache">
       <span class="etape">Étape 3 / 3</span>
-      <h2>Écris « Lu et approuvé » avec ton doigt</h2>
-      <canvas id="padLu" class="pad"></canvas>
-      <div class="ligne-boutons"><button class="second" data-effacer="padLu">Effacer</button></div>
-      <h2 style="margin-top:18px">Signe ici</h2>
+      <h2>Mention « Lu et approuvé »</h2>
+      <button id="btnLu" class="lu">Clique ici pour écrire « Lu et approuvé »</button>
+      <h2 style="margin-top:18px">Signe ici avec ton doigt</h2>
       <canvas id="padSig" class="pad"></canvas>
       <div class="ligne-boutons"><button class="second" data-effacer="padSig">Effacer</button></div>
       <button id="btnSigner">Valider ma signature</button>
@@ -174,11 +177,26 @@ $('btnVerifier').onclick = async () => {
   try {
     await appel('verifierCode', { code: $('champCode').value });
     $('blocCode').classList.add('cache'); $('blocSigner').classList.remove('cache');
-    initPad('padLu', 2.6); initPad('padSig', 2.8);
+    initPad('padSig', 2.8);
     msg(''); $('blocSigner').scrollIntoView({ behavior: 'smooth' });
   } catch (e) { msg(e.message, true); }
   $('btnVerifier').disabled = false;
 };
+
+/* ---------- Lu et approuvé ---------- */
+let luOk = false;
+$('btnLu').onclick = () => {
+  luOk = !luOk; const b = $('btnLu'); b.classList.toggle('ok', luOk);
+  b.innerHTML = luOk ? '<span class="luTexte">Lu et approuvé</span>' : 'Clique ici pour écrire « Lu et approuvé »';
+};
+async function imageLu() {
+  try { await document.fonts.load('80px Satisfy'); } catch (e) { /* police de secours */ }
+  const police = '80px Satisfy, cursive', texte = 'Lu et approuvé';
+  const c = document.createElement('canvas'), m = c.getContext('2d'); m.font = police;
+  c.width = Math.ceil(m.measureText(texte).width) + 40; c.height = 140;
+  const x = c.getContext('2d'); x.font = police; x.fillStyle = '#14246B'; x.textBaseline = 'middle'; x.fillText(texte, 20, 70);
+  return traceRecadre(c);
+}
 
 /* ---------- Zones de dessin ---------- */
 const pads = {};
@@ -226,7 +244,7 @@ async function reperesDernierePage() {
 
 async function apposer(info) {
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
-  const lu = traceRecadre(pads.padLu.c), sig = traceRecadre(pads.padSig.c);
+  const lu = await imageLu(), sig = traceRecadre(pads.padSig.c);
   const doc = await PDFDocument.load(pdfOctets.slice());
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const pages = doc.getPages(), page = pages[pages.length - 1];
@@ -274,8 +292,8 @@ async function apposer(info) {
 }
 
 $('btnSigner').onclick = async () => {
-  if (!pads.padLu || pads.padLu.traits < 2 || !traceRecadre(pads.padLu.c)) { msg('Écris « Lu et approuvé » dans le premier cadre.', true); return; }
-  if (!pads.padSig || !traceRecadre(pads.padSig.c)) { msg('Signe dans le deuxième cadre.', true); return; }
+  if (!luOk) { msg('Clique sur « Lu et approuvé ».', true); return; }
+  if (!pads.padSig || !traceRecadre(pads.padSig.c)) { msg('Signe dans le cadre avec ton doigt.', true); return; }
   $('btnSigner').disabled = true; msg('Enregistrement de ta signature…');
   try {
     const info = await appel('horodatage');

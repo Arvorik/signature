@@ -1,1 +1,1 @@
-window.CONFIG = { SUPABASE_URL: "A_REMPLIR", ANON_KEY: "A_REMPLIR", LIEU: "Trébry" };
+window.CONFIG = { SUPABASE_URL: "https://rffmuedlcokoahrppxbe.supabase.co", ANON_KEY: "sb_publishable_qG04Zp3iOqtLNo3jusYzLQ_e09Ev_Ym", LIEU: "Trébry" };
